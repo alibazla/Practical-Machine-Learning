@@ -1,0 +1,177 @@
+---
+title: "Practice Machine Learning Project 1"
+output: html_document
+---
+Goal: To use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Data Preprocessing
+Load libraries 
+
+```{r}
+library(caret)
+library(kernlab)
+library(rattle)
+library(rpart)
+library(rpart.plot)
+library(repmis)
+library(randomForest)
+library(gbm)
+library(survival)
+library(splines)
+library(parallel)
+library(plyr)
+```
+
+## Data Processing
+Import the Data
+Read the two csv files into data frames 
+```{r}
+TrainData <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE)
+dim(TrainData)
+TestData <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),header=TRUE)
+dim(TestData)
+str(TrainData)
+```
+
+## Data Cleaning
+Clean the data and get rid of observations with missing values
+A.Train Data
+```{r}
+indColToRemove <- which(colSums(is.na(TrainData) |TrainData=="")>0.9*dim(TrainData)[1]) 
+TrainDataClean <- TrainData[,-indColToRemove]
+TrainDataClean <- TrainDataClean[,-c(1:7)]
+```
+
+```{r}
+dim(TrainDataClean)
+```
+
+```{r}
+indColToRemove <- which(colSums(is.na(TestData) |TestData=="")>0.9*dim(TestData)[1]) 
+TestDataClean <- TestData[,-indColToRemove]
+TestDataClean <- TestDataClean[,-1]
+```
+
+
+```{r}
+dim(TestDataClean)
+```
+
+
+```{r}
+set.seed(12345)
+inTrain1 <- createDataPartition(TrainDataClean$classe, times = 1, p=0.7, list=FALSE)
+Train1 <- TrainDataClean[inTrain1,]
+Test1 <- TrainDataClean[-inTrain1,]
+dim(Train1)
+dim(Test1)
+```
+
+```{r}
+inTrain1 <- createDataPartition(TrainDataClean$classe, times = 1, p=0.75, list=FALSE)
+Train1 <- TrainDataClean[inTrain1,]
+Test1 <- TrainDataClean[-inTrain1,]
+dim(Train1)
+```
+
+Prediction Algorithms: following sections will have 3 different models: classification tree, random forest, and gradient boosting method. 
+##Train with Classification Tree
+```{r}
+trControl <- trainControl(method="cv", number=5)
+model_CT <- train(classe~., data=Train1, method="rpart", trControl=trControl)
+```
+
+```{r}
+fancyRpartPlot(model_CT$finalModel)
+```
+
+```{r}
+trainpred <- predict(model_CT, newdata=Test1)
+confMatCT <- confusionMatrix(Test1$classe,trainpred)
+confMatCT$table
+```
+
+```{r}
+confMatCT$overall
+```
+
+##Train with Random Forests
+Estimate the performance of the model validation data set
+```{r}
+model_RF <- train(classe~., data=Train1, method="rf", trControl=trControl, verbose=FALSE)
+```
+
+```{r}
+print(model_RF)
+```
+
+```{r}
+plot(model_RF, main = "Accuracy of Random Forest model by No. of predictors")
+```
+
+```{r}
+trainpred <- predict(model_RF,newdata=Test1)
+
+confMatRF <- confusionMatrix(Test1$classe,trainpred)
+
+confMatRF$table
+```
+
+```{r}
+confMatRF$overall
+```
+
+```{r}
+names(model_RF$finalModel)
+```
+
+```{r}
+model_RF$finalModel$classes
+plot(model_RF$finalModel, main = "Model error of Random Forest model by No. of trees")
+```
+
+```{r}
+MostImpVars <- varImp(model_RF)
+MostImpVars
+```
+Random forest has shown the accuracy of 99.3%. Next, test the accuracy of gradient boosting. 
+
+## Train with Gradient Boosting
+```{r}
+model_GBM <- train(classe~., data=Train1, method="gbm", trControl=trControl, verbose=FALSE)
+```
+
+```{r}
+print(model_GBM)
+```
+
+```{r}
+plot(model_GBM)
+```
+
+```{r}
+trainpred <- predict(model_GBM,newdata=Test1)
+
+confMatGBM <- confusionMatrix(Test1$classe,trainpred)
+```
+
+```{r}
+confMatGBM$table
+```
+
+```{r}
+confMatGBM$overall[1]
+```
+
+As shown above, the precisions with 5 folds is 95.90%
+
+##Conclusion
+Based on the results above, random  forest has shown the best accuracy of 99.3% using cross-validation with 5 steps. We can use random forest to predict the values for test data set.
+
+```{r}
+FinalTestPred <- predict(model_RF,newdata=TestDataClean)
+FinalTestPred
+```
